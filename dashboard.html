@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Community Hero - Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* --- CSS VARIABLES: LIGHT & DARK MODE --- */
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f8fafc;
+            --surface: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 24px rgba(0,0,0,0.1);
+        }
+
+        body.dark-mode {
+            --primary: #38bdf8;
+            --primary-hover: #0284c7;
+            --bg-color: #030712;
+            --surface: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
+            --shadow-lg: 0 12px 24px rgba(0,0,0,0.6);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        body { background-color: var(--bg-color); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* --- AUTH PORTAL --- */
+        #auth-overlay {
+            position: fixed; inset: 0; background: var(--bg-color); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;
+        }
+        .auth-card {
+            background: var(--surface); padding: 40px; border-radius: 24px; box-shadow: var(--shadow-lg);
+            width: 100%; max-width: 400px; text-align: center; border: 1px solid var(--border);
+        }
+        .auth-input {
+            width: 100%; padding: 14px; margin-bottom: 15px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main); font-size: 1rem;
+        }
+        
+        /* --- RESPONSIVE LAYOUT --- */
+        #app-shell { display: none; flex-direction: column; height: 100%; width: 100%; }
+        header { background: var(--surface); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm); z-index: 20; border-bottom: 1px solid var(--border); }
+        header h1 { font-size: 1.4rem; font-weight: 900; background: linear-gradient(90deg, #2563eb, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .header-controls { display: flex; gap: 10px; align-items: center; }
+        .theme-toggle, .logout-btn { background: var(--border); color: var(--text-main); border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+        .logout-btn { background: #ef4444; color: white; display: none; }
+
+        .content-wrapper { display: flex; flex: 1; overflow: hidden; flex-direction: column; }
+        main { flex: 1; position: relative; background: var(--bg-color); overflow-y: auto; overflow-x: hidden; padding: 20px; }
+        .view { display: none; height: 100%; width: 100%; animation: fadeIn 0.3s ease-out; max-width: 1000px; margin: 0 auto; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- UI COMPONENTS --- */
+        .info-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+        .info-panel h3 { margin-bottom: 10px; color: var(--primary); }
+        .info-panel p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+
+        #map-container { position: relative; height: 70vh; width: 100%; border-radius: 16px; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+        #map { height: 100%; width: 100%; }
+        .location-fab { position: absolute; bottom: 24px; right: 24px; background: var(--surface); color: var(--text-main); width: 50px; height: 50px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: var(--shadow-lg); cursor: pointer; border: 1px solid var(--border); font-size: 1.5rem; z-index: 10; transition: transform 0.2s; }
+        
+        /* Feed & Report */
+        .feed-card { background: var(--surface); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
+        .severity-badge { padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.8rem; }
+        .sev-high { background: #fee2e2; color: #991b1b; }
+        .sev-low { background: #fef3c7; color: #92400e; }
+        .report-card { background: var(--surface); padding: 40px; border-radius: 24px; box-shadow: var(--shadow-lg); text-align: center; border: 1px solid var(--border); }
+        .upload-area { border: 2px dashed var(--text-muted); border-radius: 16px; padding: 40px 20px; margin: 20px 0; background: var(--bg-color); cursor: pointer; transition: 0.3s; }
+        input[type="file"] { display: none; }
+        .btn-primary { background: var(--primary); color: #ffffff; border: none; padding: 12px 16px; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3); }
+        .btn-secondary { background: var(--border); color: var(--text-main); border: none; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: 0.2s; }
+
+        /* Admin Table & Pipeline */
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 15px; color: var(--text-main); }
+        .admin-table th, .admin-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .admin-select { padding: 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main); }
+        
+        .status-tracker { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-align: center; }
+        .status-step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+        .status-step::after { content: ''; position: absolute; width: 100%; height: 3px; background: var(--border); top: 12px; left: 50%; z-index: 1; }
+        .status-step:last-child::after { display: none; }
+        .step-icon { width: 26px; height: 26px; border-radius: 50%; background: var(--border); z-index: 2; margin-bottom: 8px; display: flex; justify-content: center; align-items: center; color: var(--surface); font-size: 12px; font-weight: bold; }
+        .step-active .step-icon { background: var(--primary); }
+        .step-active ~ .status-step::after { background: var(--border); } 
+        .step-completed::after { background: var(--primary); }
+
+        /* Navigation */
+        nav { display: flex; background: var(--surface); border-top: 1px solid var(--border); z-index: 20; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 0; color: var(--text-muted); cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: 0.2s; }
+        .nav-item.active { color: var(--primary); }
+        .nav-icon { font-size: 1.5rem; margin-bottom: 4px; }
+        
+        /* Modal */
+        #email-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(5px); }
+        .modal-content { background: var(--surface); color: var(--text-main); padding: 30px; border-radius: 16px; max-width: 600px; width: 100%; border: 1px solid var(--border); box-shadow: var(--shadow-lg); font-family: monospace; white-space: pre-wrap; line-height: 1.5; font-size: 0.9rem; max-height: 80vh; overflow-y: auto; }
+        
+        @media (min-width: 768px) {
+            .content-wrapper { flex-direction: row-reverse; }
+            nav { flex-direction: column; width: 100px; border-top: none; border-right: 1px solid var(--border); height: 100%; justify-content: flex-start; padding-top: 20px; gap: 30px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="auth-overlay">
+    <div class="auth-card">
+        <h2 style="margin-bottom: 10px; font-weight: 900;">Civic Portal Login</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 25px;">Enter 'citizen' or 'dept'. Password is 'admin'.</p>
+        
+        <input type="text" id="username" class="auth-input" placeholder="Username">
+        <input type="password" id="password" class="auth-input" placeholder="Password">
+        
+        <button class="btn-primary" onclick="loginUser()" style="width: 100%;">Access System</button>
+    </div>
+</div>
+
+<div id="email-modal">
+    <div class="modal-content">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">
+            <b style="font-family: 'Inter', sans-serif; color: var(--primary);">System Output: Agentic Email Dispatch</b>
+            <button class="btn-secondary" style="background: #ef4444; color: white;" onclick="document.getElementById('email-modal').style.display='none'">Close</button>
+        </div>
+        <div id="email-text"></div>
+    </div>
+</div>
+
+<div id="app-shell">
+    <header>
+        <h1>CommunityCare.ai</h1>
+        <div class="header-controls">
+            <span id="role-badge" style="font-size: 0.8rem; font-weight: bold; color: var(--text-muted); text-transform: uppercase;"></span>
+            <button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+            <button id="logout-btn" class="logout-btn" onclick="logoutUser()">Logout</button>
+        </div>
+    </header>
+
+    <div class="content-wrapper">
+        <main>
+            
+            <div id="view-about" class="view">
+                <div class="report-card" style="text-align: left; padding: 30px;">
+                    <h2 style="color: var(--primary); margin-bottom: 20px; font-size: 2rem;">Platform Architecture</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 1.1rem;">CommunityCare.ai transforms passive civic reporting into an active, autonomous pipeline.</p>
+                    
+                    <h3 style="margin-top: 20px;">1. Spatial Ingestion & Deduplication</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 15px;">Users capture infrastructure issues. Our backend calculates Haversine distances. If an issue is within 20 meters of an existing active ticket, it aggregates as a "Community Validation" rather than flooding departments with duplicate reports.</p>
+                    
+                    <h3 style="margin-top: 20px;">2. Multimodal AI Analysis</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 15px;">The image is sent to <b>Gemini 1.5 Flash</b>. The AI acts as an expert inspector, autonomously identifying the category (e.g., Water Leak, Road Hazard) and assigning a 1-10 Severity Score without human intervention.</p>
+
+                    <h3 style="margin-top: 20px;">3. Agentic Dispatch & Bureaucratic Routing</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 15px;">Based on the AI's categorization, the system instantly drafts a formal, legally structured email containing the photographic evidence, exact GPS coordinates, and AI assessment, dispatching it directly to the responsible civic department.</p>
+
+                    <h3 style="margin-top: 20px;">4. Closed-Loop Accountability</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 15px;">When the department marks the issue as resolved, the loop remains open until the community physically verifies the repair. Falsified resolutions trigger automated email escalations to higher municipal authorities.</p>
+                </div>
+            </div>
+
+            <div id="view-map" class="view active">
+                <div class="info-panel">
+                    <h3>Strategic Civic Radar</h3>
+                    <p>This map identifies infrastructure issues in your immediate vicinity. <b>Red pins</b> represent high-severity hazards, while <b>Yellow pins</b> represent moderate issues. Ensure location services are enabled to lock onto your exact radius.</p>
+                </div>
+                <div id="map-container">
+                    <div id="map"></div>
+                    <button class="location-fab" onclick="findUserLocation()" title="My Location">📍</button>
+                </div>
+            </div>
+
+            <div id="view-report" class="view">
+                <div class="info-panel">
+                    <h3>Autonomous Issue Dispatcher</h3>
+                    <p>Upload a clear photo of the infrastructure damage. Our Gemini AI will analyze the image, calculate the severity, and autonomously route the ticket to the exact municipal department responsible.</p>
+                </div>
+                <div class="report-card">
+                    <h2 style="margin-bottom: 8px;">Submit New Evidence</h2>
+                    <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                        <div style="font-size: 3.5rem; margin-bottom: 10px;">📸</div>
+                        <h3 style="color: var(--primary);">Tap to Select Photo</h3>
+                        <input type="file" id="imageInput" accept="image/*" onchange="previewImage(this)">
+                        <p id="file-name" style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted);"></p>
+                    </div>
+                    <button class="btn-primary" style="width: 100%;" onclick="processUpload()" id="uploadBtn">Analyze & Route Issue</button>
+                    <div id="report-result" style="margin-top: 20px; display: none; padding: 15px; background: #dcfce7; border-radius: 12px; color: #166534; font-weight: 600; border: 1px solid #bbf7d0;"></div>
+                </div>
+            </div>
+
+            <div id="view-feed" class="view">
+                <div class="info-panel">
+                    <h3>Community Intelligence Feed</h3>
+                    <p>Monitor the real-time resolution lifecycle of reported issues. The pipeline tracks every step from our AI drafting the formal bureaucratic email to the final community verification of the physical repair.</p>
+                </div>
+                <div id="feed-container"></div>
+            </div>
+
+            <div id="view-dept" class="view">
+                <div class="info-panel">
+                    <h3>Department Operations Console</h3>
+                    <p>Welcome, Official. Use this console to review autonomously routed tickets, view the AI-generated dispatch emails, and advance status pipelines.</p>
+                </div>
+                <div class="card" style="background: var(--surface); padding: 20px; border-radius: 16px; border: 1px solid var(--border);">
+                    <h2 style="margin-bottom: 15px;">Active Ticket Queue</h2>
+                    <div style="overflow-x: auto;">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Category & Sev</th>
+                                    <th>Status Flow</th>
+                                    <th>Agentic AI Data</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dept-table-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <nav id="main-nav">
+            <div class="nav-item" onclick="switchTab('about')" id="nav-about">
+                <span class="nav-icon">ℹ️</span><span>About</span>
+            </div>
+            <div class="nav-item active" onclick="switchTab('map')" id="nav-map">
+                <span class="nav-icon">🗺️</span><span>Radar</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('report')" id="nav-report">
+                <span class="nav-icon">📸</span><span>Report</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('feed')" id="nav-feed">
+                <span class="nav-icon">📋</span><span>Feed</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('dept')" id="nav-dept" style="display: none;">
+                <span class="nav-icon">🛡️</span><span>Console</span>
+            </div>
+        </nav>
+    </div>
+</div>
+
+<script>
+    let map;
+    let userMarker; 
+    let activePins = [];
+    let currentUserRole = '';
+    window.globalIssues = []; // Store issues globally for the modal
+
+    // --- AUTHENTICATION & THEME ---
+    function loginUser() {
+        const user = document.getElementById('username').value.toLowerCase();
+        const pass = document.getElementById('password').value;
+        
+        if (pass === 'admin') {
+            if (user === 'dept') {
+                currentUserRole = 'dept';
+                document.getElementById('nav-map').style.display = 'none';
+                document.getElementById('nav-report').style.display = 'none';
+                document.getElementById('nav-dept').style.display = 'flex';
+                document.getElementById('role-badge').innerText = 'Official Role';
+                switchTab('dept');
+            } else if (user === 'citizen') {
+                currentUserRole = 'citizen';
+                document.getElementById('nav-map').style.display = 'flex';
+                document.getElementById('nav-report').style.display = 'flex';
+                document.getElementById('nav-dept').style.display = 'none';
+                document.getElementById('role-badge').innerText = 'Citizen Role';
+                switchTab('map');
+            } else {
+                alert("Please enter 'citizen' or 'dept'.");
+                return;
+            }
+            
+            document.getElementById('auth-overlay').style.display = 'none';
+            document.getElementById('app-shell').style.display = 'flex';
+            document.getElementById('logout-btn').style.display = 'block';
+            
+            setTimeout(() => { if(currentUserRole === 'citizen') initMap(); }, 100);
+        } else {
+            alert("Incorrect password. Use 'admin'.");
+        }
+    }
+
+    function logoutUser() {
+        currentUserRole = '';
+        document.getElementById('app-shell').style.display = 'none';
+        document.getElementById('auth-overlay').style.display = 'flex';
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('logout-btn').style.display = 'none';
+    }
+
+    function toggleTheme() { document.body.classList.toggle('dark-mode'); }
+
+    // --- VIEW SWITCHER ---
+    function switchTab(tabName) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        
+        document.getElementById(`view-${tabName}`).classList.add('active');
+        const navEl = document.getElementById(`nav-${tabName}`);
+        if(navEl) navEl.classList.add('active');
+        
+        if (tabName === 'feed' || tabName === 'dept') loadDashboardData();
+    }
+
+    function previewImage(input) {
+        if(input.files && input.files[0]) document.getElementById('file-name').innerText = "Selected: " + input.files[0].name;
+    }
+
+    // --- EXACT MAP LOGIC & CUSTOM COLORED PINS ---
+    function initMap() {
+        if (!document.getElementById('map')) return;
+        map = new google.maps.Map(document.getElementById('map'), { center: { lat: 17.6868, lng: 83.2185 }, zoom: 13, disableDefaultUI: true });
+        loadDashboardData(false);
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; const rad = Math.PI / 180;
+        const a = Math.sin((lat2 - lat1)*rad/2) ** 2 + Math.cos(lat1*rad) * Math.cos(lat2*rad) * Math.sin((lon2 - lon1)*rad/2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function findUserLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userPos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    map.panTo(userPos); map.setZoom(18);
+
+                    const blueDot = { path: google.maps.SymbolPath.CIRCLE, fillColor: '#4285F4', fillOpacity: 1, strokeColor: '#FFFFFF', strokeWeight: 2, scale: 8 };
+                    if (userMarker) userMarker.setPosition(userPos);
+                    else userMarker = new google.maps.Marker({ position: userPos, map: map, icon: blueDot, title: "You are here" });
+                    
+                    loadDashboardData(true, userPos.lat, userPos.lng);
+                },
+                (error) => alert("Location access required for radar."),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else alert("Geolocation not supported.");
+    }
+
+    async function loadDashboardData(updateMap = false, currentLat = null, currentLng = null) {
+        try {
+            const response = await fetch('/api/dashboard-metrics').catch(() => null);
+            if (!response) return; 
+            const issues = await response.json();
+            window.globalIssues = issues; // Store for Email Viewer
+            
+            if(currentUserRole === 'citizen') updateFeed(issues);
+            if(currentUserRole === 'dept') updateAdminTable(issues);
+            
+            if (updateMap && currentLat && currentLng) updateMapPins(issues, currentLat, currentLng);
+        } catch (error) { console.error(error); }
+    }
+
+    function updateMapPins(issues, userLat, userLng) {
+        if(!map) return;
+        activePins.forEach(pin => pin.setMap(null)); activePins = [];
+
+        issues.forEach(issue => {
+            const distance = calculateDistance(userLat, userLng, issue.latitude, issue.longitude);
+            if (distance <= 500) { // Keep 500m for demo visibility
+                const pinColor = issue.severity_score >= 7 ? '#EF4444' : '#EAB308';
+                const newPin = new google.maps.Marker({
+                    position: { lat: issue.latitude, lng: issue.longitude }, map: map,
+                    title: `Sev: ${issue.severity_score} | ${issue.category}`,
+                    icon: { path: google.maps.SymbolPath.CIRCLE, fillColor: pinColor, fillOpacity: 1, strokeColor: '#FFFFFF', strokeWeight: 2, scale: 10 }
+                });
+                activePins.push(newPin);
+            }
+        });
+    }
+
+    // --- 5-STEP PIPELINE UI (CITIZEN) ---
+    function updateFeed(issues) {
+        const container = document.getElementById('feed-container'); container.innerHTML = '';
+        const pipeline = ["Open", "Email Drafted", "Email Sent", "Routed", "Closed - Verified"];
+        const displayNames = ["Reported", "Email Drafted", "Email Sent", "Routed", "Verified"];
+
+        issues.slice().reverse().forEach(issue => {
+            const sevClass = issue.severity_score >= 7 ? 'sev-high' : 'sev-low';
+            let activeIndex = pipeline.indexOf(issue.status);
+            if (activeIndex === -1) activeIndex = issue.status === 'Pending Verification' ? 3 : 0;
+
+            let stepsHTML = '';
+            for (let i = 0; i < displayNames.length; i++) {
+                let isActive = i <= activeIndex ? 'step-active' : '';
+                let isCompleted = i < activeIndex ? 'step-completed' : '';
+                let checkMark = i <= activeIndex ? '✓' : (i + 1);
+                stepsHTML += `<div class="status-step ${isActive} ${isCompleted}"><div class="step-icon">${checkMark}</div><span>${displayNames[i]}</span></div>`;
+            }
+
+            let actionButtons = '';
+            if (issue.status === 'Pending Verification') {
+                actionButtons = `
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
+                        <p style="font-size: 0.85rem; font-weight: bold; margin-bottom: 10px;">The city claims this is fixed. Confirm?</p>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="submitVerification(${issue.id}, true)" style="flex:1;" class="btn-primary">✅ Fixed</button>
+                            <button onclick="submitVerification(${issue.id}, false)" style="flex:1; background:#ef4444;" class="btn-primary">❌ Escalate</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML += `
+                <div class="feed-card">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:12px;"><h3 style="font-size: 1.2rem;">${issue.category}</h3><span class="severity-badge ${sevClass}">Sev: ${issue.severity_score}/10</span></div>
+                    <p style="color: var(--text-muted); margin-bottom: 12px; font-size: 0.95rem;">${issue.description}</p>
+                    <div style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">⬆️ ${issue.upvote_count} Validations</div>
+                    <div class="status-tracker">${stepsHTML}</div>
+                    ${actionButtons}
+                </div>
+            `;
+        });
+    }
+
+    // --- DEPARTMENT PORTAL LOGIC & AGENTIC EMAIL MODAL ---
+    function updateAdminTable(issues) {
+        const tbody = document.getElementById('dept-table-body'); tbody.innerHTML = '';
+        const statuses = ["Open", "Email Drafted", "Email Sent", "Routed", "Pending Verification"];
+        
+        issues.slice().reverse().forEach(issue => {
+            let options = statuses.map(s => `<option value="${s}" ${issue.status === s ? 'selected' : ''}>${s}</option>`).join('');
+            tbody.innerHTML += `
+                <tr>
+                    <td>#${issue.id}</td>
+                    <td><b>${issue.category}</b><br><span style="color:${issue.severity_score >= 7 ? 'red' : 'inherit'}; font-size:0.8rem;">Sev: ${issue.severity_score}/10</span></td>
+                    <td>
+                        <select id="status-select-${issue.id}" class="admin-select" style="margin-bottom: 5px;">${options}</select><br>
+                        <button onclick="adminUpdateStatus(${issue.id})" class="btn-primary" style="padding: 4px 8px; font-size:0.75rem;">Update Status</button>
+                    </td>
+                    <td>
+                        <button onclick="viewAgenticEmail(${issue.id})" class="btn-secondary">✉️ View Drafted Email</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function viewAgenticEmail(issueId) {
+        const issue = window.globalIssues.find(i => i.id === issueId);
+        if(!issue) return;
+
+        const emailText = `Date: ${new Date().toLocaleDateString()}\nTo: dispatch@city-infrastructure.gov\nSubject: URGENT Civic Alert: ${issue.category} (Severity ${issue.severity_score}/10)\n\nDear Department Official,\n\nAn urgent civic infrastructure issue has been autonomously reported, geolocated, and verified by the CommunityCare.ai multi-modal assessment system.\n\nISSUE DETAILS:\n-----------------------------------------\nSystem Ticket: #${issue.id}\nCategory: ${issue.category}\nSeverity Index: ${issue.severity_score}/10\nAI Assessment: ${issue.description}\nGPS Coordinates: ${issue.latitude}, ${issue.longitude}\nCommunity Validations: ${issue.upvote_count}\n\nACTION REQUIRED:\nView exact location and boundaries on Municipal Google Maps Portal:\nhttp://maps.google.com/?q=${issue.latitude},${issue.longitude}\n\nPhotographic evidence has been attached to this record in the backend storage. Please update the resolution status to 'Pending Verification' in the dashboard once repairs are completed.\n\nAutomated via CommunityCare Agentic Dispatcher`;
+        
+        document.getElementById('email-text').innerText = emailText;
+        document.getElementById('email-modal').style.display = 'flex';
+    }
+
+    async function adminUpdateStatus(issueId) {
+        const newStatus = document.getElementById(`status-select-${issueId}`).value;
+        if(newStatus === 'Pending Verification') {
+            await fetch(`/api/admin-resolve/${issueId}`, { method: 'POST' });
+        } else alert(`Simulated Database Update: Status changed to '${newStatus}' for Issue #${issueId}`);
+        loadDashboardData();
+    }
+
+    // --- BACKEND API CALLS ---
+    async function submitVerification(issueId, isFixed) {
+        const formData = new FormData(); formData.append('is_fixed', isFixed);
+        await fetch(`/api/community-verify/${issueId}`, { method: 'POST', body: formData });
+        loadDashboardData();
+        if(!isFixed) alert("Escalation protocol activated.");
+    }
+
+    function processUpload() {
+        const fileField = document.getElementById('imageInput');
+        if (fileField.files.length === 0) { alert("Please upload an image."); return; }
+        document.getElementById('uploadBtn').innerText = "Acquiring GPS...";
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => submitData(pos.coords.latitude, pos.coords.longitude),
+                (err) => submitData(17.6868, 83.2185), { enableHighAccuracy: true }
+            );
+        } else submitData(17.6868, 83.2185);
+    }
+
+    async function submitData(lat, lon) {
+        const fileField = document.getElementById('imageInput'); const resultBox = document.getElementById('report-result'); const btn = document.getElementById('uploadBtn');
+        btn.innerText = "Processing via Gemini AI...";
+        const formData = new FormData(); formData.append('file', fileField.files[0]); formData.append('latitude', lat); formData.append('longitude', lon);
+
+        try {
+            const response = await fetch('/api/report-issue', { method: 'POST', body: formData });
+            const result = await response.json();
+            resultBox.innerHTML = result.status === "deduplicated" ? `<b>Smart Deduplication:</b><br>${result.message}` : `<b>Success!</b><br>Issue routed to department.`;
+            resultBox.style.display = 'block'; loadDashboardData(false);
+        } catch (error) { resultBox.innerHTML = `Error: Cannot connect to server.`; resultBox.style.display = 'block'; } 
+        finally { btn.innerText = "Analyze & Route Issue"; }
+    }
+</script>
+
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSv7usjInibLzNPNt1nv4N9pZ2pDGLR9o&callback=initMap"></script>
+
+</body>
+</html>
+//--- "okchmocblcqisygl"---
